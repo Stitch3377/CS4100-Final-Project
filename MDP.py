@@ -51,7 +51,7 @@ class MDP:
                          amount of segments to split width into
             """
             self.cb = cb
-            self.delta_l = (cl - cb) / l_segments
+            self.delta_l = (cl - cb)/ l_segments
             self.delta_w = (cw - cb) / w_segments
             self.grid = np.empty((l_segments, w_segments), dtype=bool)
 
@@ -70,11 +70,16 @@ class MDP:
                 Current MDP-builder object
             """
             c = coord - self.cb
-            pr_w = np.dot(c, self.delta_w) / np.linalg.norm(self.delta_w)
-            pr_l = np.dot(c, self.delta_l) / np.linalg.norm(self.delta_l)
+            norm_w = self.delta_w / np.dot(self.delta_w, self.delta_w)
+            norm_l = self.delta_l / np.dot(self.delta_l, self.delta_l)
+            pr_w = np.dot(c, norm_w)
+            pr_l = np.dot(c, norm_l)
             x = int(pr_w)
             y = int(pr_l)
-            self.grid[y, x] = 1
+            try:
+                self.grid[y, x] = 1
+            except IndexError:
+                print(f"out of bounds data: {coord}")
             return self
 
         def create(self):
