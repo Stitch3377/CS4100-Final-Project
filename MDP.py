@@ -1,4 +1,5 @@
 import numpy as np
+from decimal import Decimal
 
 ACTIONS = np.array([
     [0,1],[1,0],[0,-1],[-1,0],#UP,DOWN,LEFT,RIGHT
@@ -53,7 +54,7 @@ class MDP:
             self.cb = cb
             self.delta_l = (cl - cb)/ l_segments
             self.delta_w = (cw - cb) / w_segments
-            self.grid = np.empty((l_segments, w_segments), dtype=bool)
+            self.grid = np.zeros((l_segments, w_segments), dtype=bool)
 
         def feed_photo_loc(self, coord):
             """
