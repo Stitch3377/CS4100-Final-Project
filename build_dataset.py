@@ -132,3 +132,41 @@ class DatasetBuilder:
         """
         coord = self.mdp.state_to_coord(state_id)
         return (float(coord[0]), float(coord[1]))
+    
+    def create_positive_pairs(self, state_images):
+        """
+        Create positive training pairs where observation matches map state
+        
+        Args:
+            state_images: Dictionary of state_id -> list of images
+            
+        Returns:
+            List of positive pairs
+        """  
+        positive_pairs = []
+
+        for state_id, images in tqdm(state_images.items(), desc="Positive pairs"):
+            center_lat, center_lon = self.get_state_center_coord(state_id)
+
+            for img_data in images:
+                pair = {
+                    'map_state': {
+                        'state_id': int(state_id),
+                        'center_lat': center_lat,
+                        'center-lon': center_lon
+                    },
+                    'observation': {
+                        'image_path': img_data['image_path'],
+                        'true_lat': img_data['lat'],
+                        'true_lon': img_data['lon'],
+                        'pano_id': img_data.get('pano_id', ''),
+                        'date': img_data.get('date', '')
+                    },
+                    'label': 1,
+                    'true_state_id': int(state_id),
+                    'claimed_state_id': int(state_id),
+                    'pair_type': 'positive'
+                }
+                positive_pairs.append(pair)
+    
+        return positive_pairs
