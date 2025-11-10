@@ -4,14 +4,18 @@ Creates pairs of (map_state, observation) with labels for CNN training
 """
 
 import json
+import random
 from pathlib import Path
 from collections import defaultdict
 from decimal import Decimal
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
+from sklearn.model_selection import train_test_split
 from MDP import MDP
 
 DATA_PATH = 'Street_View_Photos/Heading'
+OUT_PATH = 'data'
 
 class DatasetBuilder:
     """Builds labeled training pairs for observation model CNN"""
@@ -142,7 +146,7 @@ class DatasetBuilder:
             
         Returns:
             List of positive pairs
-        """  
+        """
         positive_pairs = []
 
         for state_id, images in tqdm(state_images.items(), desc="Positive pairs"):
@@ -170,3 +174,193 @@ class DatasetBuilder:
                 positive_pairs.append(pair)
     
         return positive_pairs
+
+    def get_neighboring_states(self, state_id, valid_states, radius):
+        """
+        Get neighboring states within a certain grid distance
+        
+        Args:
+            state_id: Center state ID
+            valid_states: Set of valid state IDs
+            radius: Grid distance radius for neighbors
+            
+        Returns:
+            List of neighboring state IDs
+        """
+
+        # Find grid position of target state
+        target_y, target_x = None, None
+        states_seen = 0
+
+        for y, row in enumerate(self.mdp.state_grid):
+            for x, cell in enumerate(row):
+                if cell:
+                    if states_seen ==  state_id:
+                        target_y, target_x = y, x
+                        break
+                    states_seen += 1
+            if target_y is not None:
+                break
+        
+        if target_y is None:
+            return []
+        
+        # Find neighbors within radius
+        neighbors = []
+        states_seen = 0
+
+        for y, row in enumerate(self.mdp.state_grid):
+            for x, cell in enumerate(row):
+                if cell:
+                    dist = abs(y - target_y) + abs(x - target_x)
+                    if 0 < dist <= radius and states_seen in valid_states:
+                        neighbors.append(states_seen)
+                    states_seen += 1
+
+        return neighbors
+
+    def create_negative_pairs(self, positive_pairs, state_images, target_positive_ratio=0.1, hard_negative_ratio=0.5):
+        """
+        Create negative training pairs where observation doesn't match map state.
+        Hard negatives are states nearby to the target that are matched incorrectly.
+        Easy negatives are random far away states to the target that are matched incorrectly.
+        
+        Args:
+            positive_pairs: List of positive pairs
+            state_images: Dictionary of state_id -> list of images
+            target_positive_ratio: Target ratio of positive pairs
+            hard_negative_ratio: Fraction of negatives from nearby states
+            
+        Returns:
+            List of negative pairs
+        """
+        num_positives = len(positive_pairs)
+        num_negatives_needed = int(num_positives) * (1 - target_positive_ratio) / target_positive_ratio
+        negatives_per_positive = num_negatives_needed // num_positives
+        valid_states = set(state_images.keys())
+
+        negative_pairs = []
+
+        for pos_pair in tqdm(positive_pairs, desc="Negative pairs"):
+            true_state_id = pos_pair['true_state_id']
+            observation = pos_pair['observation']
+
+            # Get neighboring states for hard negatives
+            neighbors = self.get_neighboring_states(true_state_id, valid_states, radius=3)
+            far_states = [s for s in valid_states if s != true_state_id and s not in neighbors]
+
+            # Calculate how many hard vs. easy negatives
+            num_hard = int(negatives_per_positive * hard_negative_ratio)
+            num_easy = negatives_per_positive - num_hard
+
+            # Sample hard negatives
+            if neighbors and num_hard > 0:
+                hard_samples = random.sample(neighbors, min(num_hard, len(neighbors)))
+            else:
+                hard_samples = []
+            
+            # Sample easy negatives
+            if far_states and num_easy > 0:
+                easy_samples = random.sample(far_states, min(num_easy, len(far_states)))
+            else:
+                easy_samples = []
+
+            # Create negative pairs
+            for neg_state_id in hard_samples + easy_samples:
+                center_lat, center_lon = self.get_state_center_coord(neg_state_id)
+
+                neg_pair = {
+                    'map_state': {
+                        'state_id': int(neg_state_id),
+                        'center_lat': center_lat,
+                        'center_lon': center_lon
+                    },
+                    'observation': {
+                        'image_path': observation['image_path'],
+                        'true_lat': observation['true_lat'],
+                        'true_lon': observation['true_lon'],
+                        'pano_id': observation.get('pano_id', ''),
+                        'date': observation.get('date', '')
+                    },
+                    'label': 0,
+                    'true_state_id': int(true_state_id),
+                    'claimed_state_id': int(neg_state_id),
+                    'pair_type': 'hard_negative' if neg_state_id in hard_samples else 'easy_negative'
+                }
+                negative_pairs.append(neg_pair)
+        return negative_pairs
+    
+    def build_dataset(self, image_dir=DATA_PATH, target_positive_ratio=0.1, hard_negative_ratio=0.5, random_seed=42):
+        """
+        Build complete dataset with positive and negative pairs
+        
+        Args:
+            image_dir: Root directory containing images (searches recursively)
+            target_positive_ratio: Target ratio of positive pairs (0.10 = 10%)
+            hard_negative_ratio: Ratio of hard negatives
+            random_seed: Random seed for reproducibility
+            
+        Returns:
+            Tuple of (dataset, metadata)
+        """
+        random.seed(random_seed)
+        np.random.seed(random_seed)
+
+        print("\n" + "="*60)
+        print("BUILDING DATASET")
+        print("="*60)
+
+        # 1. Collect images by state
+        state_images = self.collect_images_by_state(image_dir)
+
+        if len(state_images) == 0:
+            raise ValueError("No images found. Check image directory.")
+        
+        # 2. Create positive pairs
+        positive_pairs = self.create_positive_pairs(state_images)
+
+        # 3. Create negative pairs
+        negative_pairs = self.create_negative_pairs(
+            positive_pairs, state_images,
+            target_positive_ratio=target_positive_ratio,
+            hard_negative_ratio=hard_negative_ratio
+        )
+        
+        # 4. Combine & shuffle
+        dataset = positive_pairs + negative_pairs
+        random.shuffle(dataset)
+
+        # Calculate statistics for metadata
+        total_pairs = len(dataset)
+        actual_positive_ratio = len(positive_pairs) / total_pairs
+        num_hard = sum(1 for p in negative_pairs if p['pair_type'] == 'hard_negative')
+        num_easy = sum(1 for p in negative_pairs if p['pair_type'] == 'easy_negative')
+
+        metadata = {
+            'total_pairs': total_pairs,
+            'positive_pairs': len(positive_pairs),
+            'negative_pairs': len(negative_pairs),
+            'hard_negatives': num_hard,
+            'easy_negatives': num_easy,
+            'actual_positive_ratio': actual_positive_ratio,
+            'states_with_images': len(state_images),
+            'total_states': self.num_states,
+            'random_seed': random_seed,
+            'target_positive_ratio': target_positive_ratio,
+            'hard_negative_ratio': hard_negative_ratio
+        }
+
+        print(f"\n" + "="*60)
+        print("DATASET SUMMARY")
+        print("="*60)
+        print(f"Total pairs: {total_pairs:,}")
+        print(f"  Positive: {len(positive_pairs):,} ({actual_positive_ratio*100:.2f}%)")
+        print(f"  Negative: {len(negative_pairs):,} ({(1-actual_positive_ratio)*100:.2f}%)")
+        print(f"    - Hard negatives: {num_hard:,}")
+        print(f"    - Easy negatives: {num_easy:,}")
+        print(f"\nStates with images: {len(state_images)} / {self.num_states}")
+        print("="*60)
+        
+        return dataset, metadata
+
+    
