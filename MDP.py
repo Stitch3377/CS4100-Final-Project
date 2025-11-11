@@ -147,26 +147,36 @@ class MDP:
         y = int(pr_l)
         return np.sum(self.state_grid[:y])+np.sum(self.state_grid[y][:x])
 
-    def state_to_coord(self, state):
+    def state_to_coord(self, state, center = True):
         """
         Converts a states index to its coordinates in latitude and longitude as a 2x1 np vector.
 
         Parameters
         ----------
-        state : int
-                Index of the state to convert to the bottom left coordinate
+        state  : int
+                Index of the state to convert to coordinates
+
+        center : bool
+                 Takes the coordinates from the center of the grid if True, bottom left otherwise
 
         Returns
         -------
         2x1 numpy vector
-            The coordinates of the bottom left vertex of that state
+            The coordinates of the bottom left vertex of that state, if state does not exist returns Null
         """
+        coords = None
         states_left = state
-        for y in range(len(state)):
-            for x in range(len(state[0])):
-                states_left - self.state_grid[y][x]
+        for y in range(len(self.state_grid)):
+            for x in range(len(self.state_grid[0])):
+                states_left -= self.state_grid[y][x]
                 if states_left == 0:
-                    return y * self.delta_l + x * self.delta_w
+                    coords = y * self.delta_l + x * self.delta_w
+                    break
+        if center and coords is not None:
+            coords += np.array([.5 * self.delta_l, .5 * self.delta_w])
+        return coords
+
+
 
 
     def calc_transition_prob(self, old_state, action, new_state):
