@@ -188,3 +188,15 @@ class MDP:
             The probability of transitioning from old_state to new_state with the given action
         """
         return self.transition_matrix[action][old_state][new_state]
+
+    def get_total_states(self):
+        """
+        Returns the total amount of states in the MDP.
+
+        Returns
+        int
+            Number of states in the MDP
+        -------
+
+        """
+        return np.sum(self.state_grid)
