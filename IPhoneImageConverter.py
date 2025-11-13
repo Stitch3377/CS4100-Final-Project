@@ -35,14 +35,11 @@ for file in tqdm(os.listdir(parent_dir)):
     if lonRef == "W":
         lon = -lon
 
-    print(f"lat: {lat}, lon: {lon}, rot: {rot}")
-
     c = np.array([lat, lon])
     c = c - cb
 
     if np.dot(c, l) > np.dot(l, l) or np.dot(c, w) > np.dot(w, w):
-        print("^ out of bounds")
-        #continue
+        continue #out of bounds
 
     out_folder = target_dir + f"/{lat}-{lon}-{rot}"
 
