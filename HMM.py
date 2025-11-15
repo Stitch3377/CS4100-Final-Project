@@ -1,0 +1,62 @@
+import numpy as np
+import MDP
+
+class HMM:
+    """Class that represents a Hidden Markov Model specifically only its belief state."""
+
+    def __init__(self, MDP, CNN, first_observation):
+        """
+        Constructor for Hidden Markov Model.
+
+        Parameters
+        ----------
+        MDP               : MDP.MDP
+                            Markov Decision Process object used in the HMM, Should have same dimensions as CNN.
+        CNN               : (Fill out in future)
+                            Convolutional Neural Network model, Should have same dimensions as MDP.
+        first_observation : (Fill out in future)
+                            Photo that can be fed into the CNN. (Not yet known what format)
+        """
+        self.MDP = MDP
+        self.CNN = CNN
+        self.reset(first_observation)
+
+    def step(self, action, observation):
+        """
+        Updates the Belief state of the HMM given a new action and observation.
+
+        Parameters
+        ----------
+        action      : int
+                      Integer id of the action that was taken.
+        observation : (Fill out in future)
+                      Photo that can be fed into the CNN. (Not yet known what format)
+        """
+        self.belief_state = np.matmul(self.belief_state, self.MDP.transition_matrix[action])
+        #if CNN.get_observations returns col vector need to get transpose
+        self.belief_state = self.belief_state * self.CNN.get_observations(observation)
+
+    def reset(self, observation):
+        """
+        Resets the belief state of the HMM with a starting observation.
+
+        Parameters
+        ----------
+        observation   : (Fill out in future)
+                        Starting observation of the HMM which is a photo. (Not yet known what format)
+        """
+        self.belief_state = np.ones((1,self.MDP.get_total_states()))
+        #if CNN.get_observations returns col vector need to get transpose
+        self.belief_state = self.belief_state * self.CNN.get_observations(observation)
+
+    def get_belief_state(self, state):
+        """
+        Returns the belief state of the HMM of a given state.
+
+        Parameters
+        ----------
+        state : float
+                Normalized probability of being in that state.
+        """
+        denominator = np.sum(self.belief_state)
+        return self.belief_state[0][state]/denominator
