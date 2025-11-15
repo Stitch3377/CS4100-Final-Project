@@ -55,8 +55,13 @@ class HMM:
 
         Parameters
         ----------
-        state : float
-                Normalized probability of being in that state.
+        state : int
+                Integer ID of the state to get the belief state for.
+
+        Returns
+        -------
+        float
+            Normalized probability of being in that state.
         """
         denominator = np.sum(self.belief_state)
         return self.belief_state[0][state]/denominator
