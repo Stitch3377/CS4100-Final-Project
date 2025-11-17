@@ -1,3 +1,4 @@
+# pylint: disable=C0303, C0301
 """
 Build labeled training dataset using existing MDP.py
 Creates pairs of (map_state, observation) with labels for CNN training
@@ -13,41 +14,98 @@ import pandas as pd
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from MDP import MDP
+from cnn.image_data_processors.map import BBox, download_campus_map
 
 DATA_PATH = 'Street_View_Photos/Heading'
 OUT_PATH = 'data'
+MAP_CACHE_PATH = 'data/map_tiles'
 
 class DatasetBuilder:
     """Builds labeled training pairs for observation model CNN"""
     
-    def __init__(self, mdp):
+    def __init__(self, mdp, bbox, api_key, map_zoom=18, map_size=(256, 256)):
         """
         Initialize dataset builder with existing MDP
         
         Args:
             mdp: MDP instance with grid already configured
+            bbox: BBox object defining campus boundaries
+            api_key: Google Maps API key for downloading map tiles
+            map_zoom: Zoom level for map tiles
+            map_size: Size of map tile images (width, height)
         """
         self.mdp = mdp
+        self.bbox = bbox
+        self.api_key = api_key
+        self.map_zoom = map_zoom
+        self.map_size = map_size
         self.num_states = np.sum(mdp.state_grid)
+
+        Path(MAP_CACHE_PATH).mkdir(parents=True, exist_ok=True)
+
+        self.state_map_cache = {}
+
+    def get_or_create_map_tile(self, state_id):
+        """
+        Get cached map tile for a state or create new one
+        
+        Args:
+            state_id: State ID
+            
+        Returns:
+            Path to map tile image
+        """
+        cache_path = Path(MAP_CACHE_PATH) / f"state_{state_id}.png"
+
+        if cache_path.exists():
+            return str(cache_path)
+        
+        # Generate new map tile centered on state
+        center_coord = self.mdp.state_to_coord(state_id, center=True)
+        center_lat, center_lon = float(center_coord[0]), float(center_coord[1])
+
+        # Create bounding box around this state's center - 60% of cell size
+        lat_delta = abs(float(self.mdp.delta_l[0])) * 0.6
+        lon_delta = abs(float(self.mdp.delta_w[1])) * 0.6
+        state_bbox = BBox(
+            lat_min=center_lat - lat_delta,
+            lon_min=center_lon - lon_delta,
+            lat_max=center_lat + lat_delta,
+            lon_max=center_lon + lon_delta
+        )
+
+        # Download map tile
+        map_img = download_campus_map(
+            bbox=state_bbox,
+            zoom=self.map_zoom,
+            size=self.map_size,
+            api_key=self.api_key,
+            maptype='satellite'
+        )
+
+        # Save to cache
+        map_img.save(cache_path)
+        return str(cache_path)
 
     def collect_images_by_state(self, image_dir=DATA_PATH):
         """
-        Collect all images and organize by state using MDP's coord_to_state
-        Searches recursively through subdirectories
+        Collect all street view images and organize by state using MDP's coord_to_state
+        Also generates map tiles for each state
         
         Args:
-            image_dir: Root directory containing images (can be in subdirectories)
+            image_dir: Root directory containing images
             
         Returns:
             Dictionary mapping state_id -> list of image data
         """
-        image_dir = Path(image_dir)
-
         # Search for JSON metadata files
+        image_dir = Path(image_dir)
         metadata_files = list(image_dir.rglob('*.json'))
-        metadata_files = [f for f in metadata_files if not f.name.endswith('.Zone.Identifier')] # filter out Zone Identifier files
+        # Filter out Zone Identifier files
+        metadata_files = [f for f in metadata_files if not f.name.endswith('.Zone.Identifier')]
 
         state_images = defaultdict(list)
+        states_needing_maps = set()
         out_of_bounds = 0
         errors = 0
         no_image_file = 0
@@ -85,7 +143,7 @@ class DatasetBuilder:
                         image_file = possible_file
                         break
 
-                if image_file is None: # if name doesn't match, just pick whatever JPG is in the file
+                if image_file is None: # if name doesn't match, just pick JPG in file
                     for jpg_file in meta_file.parent.glob('*.jpg'):
                         if not jpg_file.name.endswith('.Zone.Identifier'):
                             image_file = jpg_file
@@ -98,6 +156,7 @@ class DatasetBuilder:
                 # Use MDP to determine state
                 try:
                     state_id = self.mdp.coord_to_state(coord)
+                    states_needing_maps.add(state_id)
 
                     state_images[state_id].append({
                         'image_path': str(image_file),
@@ -114,6 +173,7 @@ class DatasetBuilder:
                 print(f"Error {errors}: {e}")
                 errors += 1
                 continue
+
         total_images = sum(len(imgs) for imgs in state_images.values())
         print("Image collection complete:")
         print(f"Total images found: {total_images}")
@@ -122,6 +182,13 @@ class DatasetBuilder:
         print(f"Missing image files: {no_image_file}")
         print(f"Errors: {errors}")
         
+        # Generate map tiles for all states with images
+        for state_id in tqdm(states_needing_maps, desc='Create map tiles'):
+            try:
+                self.get_or_create_map_tile(state_id)
+            except Exception as e:
+                print(f"Error generating map for state {state_id}: {e}")
+
         return dict(state_images)
 
     def get_state_center_coord(self, state_id):
@@ -139,39 +206,35 @@ class DatasetBuilder:
     
     def create_positive_pairs(self, state_images):
         """
-        Create positive training pairs where observation matches map state
+        Create positive training pairs where street view observation matches map state
         
         Args:
-            state_images: Dictionary of state_id -> list of images
+            state_images: Dictionary of state_id -> list of street view images
             
         Returns:
             List of positive pairs
         """
         positive_pairs = []
 
-        for state_id, images in tqdm(state_images.items(), desc="Positive pairs"):
+        for state_id, images in tqdm(state_images.items(), desc="Creating positive pairs"):
+            map_path = self.get_or_create_map_tile(state_id) # get map tile for this state
             center_lat, center_lon = self.get_state_center_coord(state_id)
 
             for img_data in images:
-                pair = {
-                    'map_state': {
-                        'state_id': int(state_id),
-                        'center_lat': center_lat,
-                        'center-lon': center_lon
-                    },
-                    'observation': {
-                        'image_path': img_data['image_path'],
-                        'true_lat': img_data['lat'],
-                        'true_lon': img_data['lon'],
-                        'pano_id': img_data.get('pano_id', ''),
-                        'date': img_data.get('date', '')
-                    },
+                pos_pair = {
+                    'map_image_path': map_path,
+                    'street_view_path': img_data['image_path'],
+                    'state_id': int(state_id),
+                    'map_center_lat': center_lat,
+                    'map_center_lon': center_lon,
+                    'observation_lat': img_data['lat'],
+                    'observation_lon': img_data['lon'],
+                    'pano_id': img_data.get('pano_id', ''),
+                    'date': img_data.get('date', ''),
                     'label': 1,
-                    'true_state_id': int(state_id),
-                    'claimed_state_id': int(state_id),
                     'pair_type': 'positive'
                 }
-                positive_pairs.append(pair)
+                positive_pairs.append(pos_pair)
     
         return positive_pairs
 
@@ -241,9 +304,13 @@ class DatasetBuilder:
 
         negative_pairs = []
 
-        for pos_pair in tqdm(positive_pairs, desc="Negative pairs"):
-            true_state_id = pos_pair['true_state_id']
-            observation = pos_pair['observation']
+        for pos_pair in tqdm(positive_pairs, desc="Creative negative pairs"):
+            true_state_id = pos_pair['state_id']
+            street_view_path = pos_pair['street_view_path']
+            obs_lat = pos_pair['observation_lat']
+            obs_lon = pos_pair['observation_lon']
+            pano_id = pos_pair['pos_pair']
+            date = pos_pair['date']
 
             # Get neighboring states for hard negatives
             neighbors = self.get_neighboring_states(true_state_id, valid_states, radius=3)
@@ -253,38 +320,27 @@ class DatasetBuilder:
             num_hard = int(negatives_per_positive * hard_negative_ratio)
             num_easy = negatives_per_positive - num_hard
 
-            # Sample hard negatives
-            if neighbors and num_hard > 0:
-                hard_samples = random.sample(neighbors, min(num_hard, len(neighbors)))
-            else:
-                hard_samples = []
-            
-            # Sample easy negatives
-            if far_states and num_easy > 0:
-                easy_samples = random.sample(far_states, min(num_easy, len(far_states)))
-            else:
-                easy_samples = []
+            # Sample easy and hard negatives
+            hard_samples = random.sample(neighbors, min(num_hard, len(neighbors))) if neighbors else []
+            easy_samples = random.sample(far_states, min(num_easy, len(far_states))) if far_states else []
 
-            # Create negative pairs
+            # Create negative pairs with wrong map tiles
             for neg_state_id in hard_samples + easy_samples:
+                map_path = self.get_or_create_map_tile(neg_state_id)
                 center_lat, center_lon = self.get_state_center_coord(neg_state_id)
-
+                
                 neg_pair = {
-                    'map_state': {
-                        'state_id': int(neg_state_id),
-                        'center_lat': center_lat,
-                        'center_lon': center_lon
-                    },
-                    'observation': {
-                        'image_path': observation['image_path'],
-                        'true_lat': observation['true_lat'],
-                        'true_lon': observation['true_lon'],
-                        'pano_id': observation.get('pano_id', ''),
-                        'date': observation.get('date', '')
-                    },
+                    'map_image_path': map_path,
+                    'street_view_path': street_view_path,
+                    'state_id': int(neg_state_id),
+                    'map_center_lat': center_lat,
+                    'map_center_lon': center_lon,
+                    'observation_lat': obs_lat,
+                    'observation_lon': obs_lon,
+                    'pano_id': pano_id,
+                    'date': date,
                     'label': 0,
                     'true_state_id': int(true_state_id),
-                    'claimed_state_id': int(neg_state_id),
                     'pair_type': 'hard_negative' if neg_state_id in hard_samples else 'easy_negative'
                 }
                 negative_pairs.append(neg_pair)
@@ -295,7 +351,7 @@ class DatasetBuilder:
         Build complete dataset with positive and negative pairs
         
         Args:
-            image_dir: Root directory containing images (searches recursively)
+            image_dir: Root directory containing street view images
             target_positive_ratio: Target ratio of positive pairs (0.10 = 10%)
             hard_negative_ratio: Ratio of hard negatives
             random_seed: Random seed for reproducibility
@@ -347,10 +403,12 @@ class DatasetBuilder:
             'total_states': self.num_states,
             'random_seed': random_seed,
             'target_positive_ratio': target_positive_ratio,
-            'hard_negative_ratio': hard_negative_ratio
+            'hard_negative_ratio': hard_negative_ratio,
+            'map_zoom': self.map_zoom,
+            'map_size': self.map_size
         }
 
-        print(f"\n" + "="*60)
+        print("\n" + "="*60)
         print("DATASET SUMMARY")
         print("="*60)
         print(f"Total pairs: {total_pairs:,}")
@@ -359,8 +417,89 @@ class DatasetBuilder:
         print(f"    - Hard negatives: {num_hard:,}")
         print(f"    - Easy negatives: {num_easy:,}")
         print(f"\nStates with images: {len(state_images)} / {self.num_states}")
+        print(f"Map tiles cached: {len(list(Path(MAP_CACHE_PATH).glob('*.png')))}")
         print("="*60)
         
         return dataset, metadata
 
+    def save_dataset(self, dataset, metadata, test_size=0.25):
+        """
+        Save dataset as CSV files with train/test split
+
+        Args:
+            dataset: List of data pairs
+            metadata: Dataset metadata dictionary
+            test_size: Fraction of data for the test set
+        """
+        # Create output directory
+        Path(OUT_PATH).mkdir(parents=True, exist_ok=True)
+
+        # Train/test split
+        train_data, test_data = train_test_split(
+            dataset,
+            test_size=test_size,
+            random_state=metadata['random_seed'],
+            stratify=[d['label'] for d in dataset]
+        )
+
+        # Convert to DataFrames
+        train_df = pd.DataFrame(train_data)
+        test_df = pd.DataFrame(test_data)
+
+        # Save CSVs
+        train_path = Path(OUT_PATH) / 'train_pairs.csv'
+        test_path = Path(OUT_PATH) / 'test_pairs.csv'
+        metadata_path = Path(OUT_PATH) / 'dataset_metadata.json'
+
+        train_df.to_csv(train_path, index=False)
+        test_df.to_csv(test_path, index=False)
+
+        # Add split info to metadata
+        metadata['train_samples'] = len(train_data)
+        metadata['test_samples'] = len(test_data)
+        metadata['test_size'] = test_size
+        with open(metadata_path, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, indent=2)
+
+def main():
+    """Main function to build dataset"""
+    # Define campus boundary
+    cb = np.array([Decimal('42.332417'), Decimal('-71.093694')]) # base coord
+    cl = np.array([Decimal('42.342028'), Decimal('-71.094639')]) # coord sharing edge with cb
+    cw = np.array([Decimal('42.333222'), Decimal('-71.083861')]) # coord sharing edge with cb
+
+    # Create MDP
+    builder = MDP.MDP_builder(cb, cl, cw, 25, 25)
+    mdp = builder.create()
+
+    # Define bounding box
+    bbox = BBox(
+        lat_min=float(cb[0]),
+        lon_min=float(cb[1]),
+        lat_max=float(cl[0]),
+        lon_max=float(cw[1])
+    )
+
+    # Maps API Key
+    api_key = "ENTER API KEY"
+
+    # Build dataset
+    dataset_builder = DatasetBuilder(
+        mdp=mdp,
+        bbox=bbox,
+        api_key=api_key,
+        map_zoom=18,
+        map_size=(256, 256)
+    )
     
+    dataset, metadata = dataset_builder.build_dataset(
+        image_dir=DATA_PATH,
+        target_positive_ratio=0.1,
+        hard_negative_ratio=0.5
+    )
+
+    # Save dataset
+    dataset_builder.save_dataset(dataset, metadata, test_size=0.25)
+
+if __name__ == "__main__":
+    main()
