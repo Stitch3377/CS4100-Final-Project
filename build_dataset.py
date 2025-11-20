@@ -10,7 +10,6 @@ from pathlib import Path
 from collections import defaultdict
 from decimal import Decimal
 import numpy as np
-import pandas as pd
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from MDP import MDP
@@ -454,7 +453,7 @@ class DatasetBuilder:
         print(f"    - Easy negatives: {num_easy:,}")
         print(f"\nStates with images: {len(state_images)} / {self.num_states}")
         print(f"Map tiles cached: {len(list(Path(MAP_CACHE_PATH).glob('*.png')))}")
-        print(f"\nGrid coverage:")
+        print("\nGrid coverage:")
         print(f"  Total states in grid: {self.num_states}")
         print(f"  States with map tiles: {len(state_map_paths)}")
         print(f"  States with street view images: {len(state_images)}")
