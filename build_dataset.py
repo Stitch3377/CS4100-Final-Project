@@ -4,8 +4,6 @@ Build labeled training dataset using existing MDP.py
 Creates pairs of (map_state, observation) with labels for CNN training
 """
 
-# make it so the map tile corresponds to the state in the 25x25 grid not to the image
-
 import json
 import random
 from pathlib import Path
@@ -466,7 +464,7 @@ class DatasetBuilder:
 
     def save_dataset(self, dataset, metadata, test_size=0.25):
         """
-        Save dataset as CSV files with train/test split
+        Save dataset image paths and metadata as JSON, images are loaded during training.
 
         Args:
             dataset: List of data pairs
@@ -484,17 +482,14 @@ class DatasetBuilder:
             stratify=[d['label'] for d in dataset]
         )
 
-        # Convert to DataFrames
-        train_df = pd.DataFrame(train_data)
-        test_df = pd.DataFrame(test_data)
-
-        # Save CSVs
-        train_path = Path(OUT_PATH) / 'train_pairs.csv'
-        test_path = Path(OUT_PATH) / 'test_pairs.csv'
+        # Save as JSON files
+        train_path = Path(OUT_PATH) / 'train_pairs.json'
+        test_path = Path(OUT_PATH) / 'test_pairs.json'
         metadata_path = Path(OUT_PATH) / 'dataset_metadata.json'
-
-        train_df.to_csv(train_path, index=False)
-        test_df.to_csv(test_path, index=False)
+        with open(train_path, 'w', encoding='utf-8') as f:
+            json.dump(train_data, f, indent=2)
+        with open(test_path, 'w', encoding='utf-8') as f:
+            json.dump(test_data, f, indent=2)
 
         # Add split info to metadata
         metadata['train_samples'] = len(train_data)
