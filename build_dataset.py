@@ -8,7 +8,6 @@ import json
 import random
 from pathlib import Path
 from collections import defaultdict
-from decimal import Decimal
 import numpy as np
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
@@ -84,12 +83,9 @@ class DatasetBuilder:
         if cache_path.exists():
             return str(cache_path)
         
-        # Get the bottom left corner relative to cb
-        corner_offset = self.mdp.state_to_coord(state_id, center=False)
-
         # Get the bottom-left corner of the state cell
-        corner_coord = self.mdp.cb + corner_offset
-        corner_lat, corner_lon = float(corner_coord[0]), float(corner_coord[1])
+        center_coord = self.mdp.state_to_coord(state_id, center=False)
+        corner_lat, corner_lon = float(center_coord[0]), float(center_coord[1])
 
         # Calculate the full cell size
         # delta_l is the vector for one cell in the length direction
@@ -229,13 +225,7 @@ class DatasetBuilder:
             (lat, lon) tuple
         """
         # Get corner coordinate (relative to cb)
-        corner_offset = self.mdp.state_to_coord(state_id, center=False)
-        
-        # Add cb to get aboslute coordinate
-        corner_coord = self.mdp.cb + corner_offset
-        
-        # Add half deltas to get center
-        center_coord = corner_coord + 0.5 * self.mdp.delta_l + 0.5 * self.mdp.delta_w
+        center_coord = self.mdp.state_to_coord(state_id, center=True)
         return (float(center_coord[0]), float(center_coord[1]))
     
     def create_positive_pairs(self, state_images, state_map_paths):
