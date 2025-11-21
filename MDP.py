@@ -172,8 +172,10 @@ class MDP:
                 if states_left == 0:
                     coords = y * self.delta_l + x * self.delta_w
                     break
+            if coords is not None:
+                break
         if center and coords is not None:
-            coords += np.array([.5 * self.delta_l, .5 * self.delta_w])
+            coords += 0.5 * (self.delta_l + self.delta_w)
         return coords
 
 
