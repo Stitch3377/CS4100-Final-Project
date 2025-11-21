@@ -107,7 +107,7 @@ class MDP:
             Transition matrix formatted [action][state][new state]
         """
         num_states = np.sum(state_grid)
-        transition_matrix = np.zeros((len(ACTIONS), num_states, num_states), dtype=bool)
+        transition_matrix = np.zeros((len(ACTIONS), num_states, num_states),dtype=bool)
         curr_state = 0
         for y in range(len(state_grid)):
             for x in range(len(state_grid[0])):
@@ -122,6 +122,7 @@ class MDP:
                         continue#no state at loc
                     new_state = np.sum(state_grid[:y])+np.sum(state_grid[y][:x])
                     transition_matrix[action][curr_state][new_state] = 1
+                curr_state += 1
         return transition_matrix
 
     def coord_to_state(self, coord):
