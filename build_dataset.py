@@ -15,9 +15,9 @@ from sklearn.model_selection import train_test_split
 from MDP import MDP
 from cnn.image_data_processors.map import BBox, download_campus_map
 
-DATA_PATH = 'Street_View_Photos/Heading'
-OUT_PATH = 'data'
-MAP_CACHE_PATH = 'data/map_tiles'
+DATA_PATH = 'UPDATE THIS'
+OUT_PATH = 'UPDATE_THIS'
+MAP_CACHE_PATH = 'UPDATE_THIS'
 
 class DatasetBuilder:
     """Builds labeled training pairs for observation model CNN"""
@@ -84,8 +84,11 @@ class DatasetBuilder:
         if cache_path.exists():
             return str(cache_path)
         
+        # Get the bottom left corner relative to cb
+        corner_offset = self.mdp.state_to_coord(state_id, center=False)
+
         # Get the bottom-left corner of the state cell
-        corner_coord = self.mdp.state_to_coord(state_id, center=False)
+        corner_coord = self.mdp.cb + corner_offset
         corner_lat, corner_lon = float(corner_coord[0]), float(corner_coord[1])
 
         # Calculate the full cell size
@@ -93,14 +96,19 @@ class DatasetBuilder:
         # delta_w is the vector for one cell in the width direction
         lat_delta = abs(float(self.mdp.delta_l[0]))
         lon_delta = abs(float(self.mdp.delta_w[1]))
-
-        # Create bounding box covering the ENTIRE grid cell
+        
+        # Create bounding box covering the entire grid cell
         state_bbox = BBox(
             lat_min=corner_lat,
             lon_min=corner_lon,
             lat_max=corner_lat + lat_delta,
             lon_max=corner_lon + lon_delta
         )
+        
+        print(f"    Corner: ({corner_lat:.6f}, {corner_lon:.6f})")
+        print(f"    Deltas: lat={lat_delta:.6f}, lon={lon_delta:.6f}")
+        print(f"    Cell size: {lat_delta:.6f} x {lon_delta:.6f}")
+
 
         # Download map tile
         map_img = download_campus_map(
@@ -155,7 +163,7 @@ class DatasetBuilder:
                 # Get image coordinates
                 lat = metadata['location']['lat']
                 lon = metadata['location']['lng']
-                coord = np.array([Decimal(str(lat)), Decimal(str(lon))])
+                coord = np.array([float(lat), float(lon)])
 
                 # Search for corresponding image file
                 image_file = None
@@ -220,8 +228,15 @@ class DatasetBuilder:
         Returns:
             (lat, lon) tuple
         """
-        coord = self.mdp.state_to_coord(state_id)
-        return (float(coord[0]), float(coord[1]))
+        # Get corner coordinate (relative to cb)
+        corner_offset = self.mdp.state_to_coord(state_id, center=False)
+        
+        # Add cb to get aboslute coordinate
+        corner_coord = self.mdp.cb + corner_offset
+        
+        # Add half deltas to get center
+        center_coord = corner_coord + 0.5 * self.mdp.delta_l + 0.5 * self.mdp.delta_w
+        return (float(center_coord[0]), float(center_coord[1]))
     
     def create_positive_pairs(self, state_images, state_map_paths):
         """
@@ -344,7 +359,7 @@ class DatasetBuilder:
 
             # Calculate how many hard vs. easy negatives
             num_hard = int(negatives_per_positive * hard_negative_ratio)
-            num_easy = negatives_per_positive - num_hard
+            num_easy = int(negatives_per_positive - num_hard)
 
             # Sample easy and hard negatives
             hard_samples = random.sample(neighbors, min(num_hard, len(neighbors))) if neighbors else []
@@ -433,14 +448,14 @@ class DatasetBuilder:
             'easy_negatives': num_easy,
             'actual_positive_ratio': actual_positive_ratio,
             'states_with_images': len(state_images),
-            'total_states': self.num_states,
+            'total_states': int(self.num_states),
             'random_seed': random_seed,
             'target_positive_ratio': target_positive_ratio,
             'hard_negative_ratio': hard_negative_ratio,
             'map_zoom': self.map_zoom,
             'map_size': self.map_size,
             'states_with_map_tiles': len(state_map_paths),
-            'grid_shape': list(self.mdp.state_grid.shape)
+            'grid_shape': [int(x) for x in self.mdp.state_grid.shape]
         }
 
         print("\n" + "="*60)
@@ -500,9 +515,9 @@ class DatasetBuilder:
 def main():
     """Main function to build dataset"""
     # Define campus boundary
-    cb = np.array([Decimal('42.332417'), Decimal('-71.093694')]) # base coord
-    cl = np.array([Decimal('42.342028'), Decimal('-71.094639')]) # coord sharing edge with cb
-    cw = np.array([Decimal('42.333222'), Decimal('-71.083861')]) # coord sharing edge with cb
+    cb = np.array([42.332417, -71.093694]) # base coord
+    cl = np.array([42.342028, -71.094639]) # coord sharing edge with cb
+    cw = np.array([42.333222, -71.083861]) # coord sharing edge with cb
 
     # Create MDP & feed street view locations to populate grid
     builder = MDP.MDP_builder(cb, cl, cw, 25, 25)
@@ -519,7 +534,7 @@ def main():
             if metadata.get('status') == 'OK':
                 lat = metadata['location']['lat']
                 lon = metadata['location']['lng']
-                coord = np.array([Decimal(str(lat)), Decimal(str(lon))])
+                coord = np.array([float(lat), float(lon)])
                 builder.feed_photo_loc(coord)
         except Exception as e:
             print(e)
