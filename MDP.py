@@ -1,10 +1,8 @@
 import numpy as np
-from decimal import Decimal
 
 ACTIONS = np.array([
     [0,1],[1,0],[0,-1],[-1,0],#UP,DOWN,LEFT,RIGHT
     [-1,-1],[-1,1],[1,-1],[1,1],#Diagonals (DL, UL, DR, UR)
-
 ])
 
 class MDP:
@@ -128,7 +126,7 @@ class MDP:
 
     def coord_to_state(self, coord):
         """
-        Converts the latitude and latitude in a 2x1 np vector into the index of its state.
+        Converts the longitude and latitude in a 2x1 np vector into the index of its state.
 
         Parameters
         ----------
@@ -175,11 +173,8 @@ class MDP:
             if coords is not None:
                 break
         if center and coords is not None:
-            coords += 0.5 * (self.delta_l + self.delta_w)
+            coords += 0.5 * (self.delta_l + self.delta_w) + self.cb
         return coords
-
-
-
 
     def calc_transition_prob(self, old_state, action, new_state):
         """
