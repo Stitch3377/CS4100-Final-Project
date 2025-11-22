@@ -19,6 +19,7 @@ class HMM:
         """
         self.MDP = MDP
         self.CNN = CNN
+        self.belief_state = None
         self.reset(first_observation)
 
     def step(self, action, observation):
@@ -45,7 +46,7 @@ class HMM:
         observation   : (Fill out in future)
                         Starting observation of the HMM which is a photo. (Not yet known what format)
         """
-        self.belief_state = np.ones((1,self.MDP.get_total_states()))
+        self.belief_state = np.ones((self.MDP.get_total_states()))
         #if CNN.get_observations returns col vector need to get transpose
         self.belief_state = self.belief_state * self.CNN.get_observations(observation)
 
