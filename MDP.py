@@ -120,7 +120,7 @@ class MDP:
                         continue#out of bounds
                     if state_grid[ny][nx] == 0:
                         continue#no state at loc
-                    new_state = np.sum(state_grid[:y])+np.sum(state_grid[y][:x])
+                    new_state = np.sum(state_grid[0:ny])+np.sum(state_grid[ny][0:nx])
                     transition_matrix[action][curr_state][new_state] = 1
                 curr_state += 1
         return transition_matrix
