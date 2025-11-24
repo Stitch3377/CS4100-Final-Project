@@ -6,8 +6,8 @@ import os
 import json
 
 import matplotlib.pyplot as plt
-from MDP import MDP
-import HMM
+from src.mdp.MDP import MDP
+import src.mdp.HMM as HMM
 
 parent_dir = "C:/Users/arbla/PycharmProjects/Street-View-Downloader/photos"
 

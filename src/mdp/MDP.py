@@ -140,8 +140,13 @@ class MDP:
             The index of the state at that coordinate
         """
         c = coord - self.cb
-        pr_w = np.dot(c, self.delta_w) / np.linalg.norm(self.delta_w)
-        pr_l = np.dot(c, self.delta_l) / np.linalg.norm(self.delta_l)
+        # FIX 1: Use the same projection logic as feed_photo_loc
+        # Previous code calculated physical length, not grid index.
+        norm_w = self.delta_w / np.dot(self.delta_w, self.delta_w)
+        norm_l = self.delta_l / np.dot(self.delta_l, self.delta_l)
+        
+        pr_w = np.dot(c, norm_w)
+        pr_l = np.dot(c, norm_l)
         x = int(pr_w)
         y = int(pr_l)
         return np.sum(self.state_grid[:y])+np.sum(self.state_grid[y][:x])
@@ -165,16 +170,33 @@ class MDP:
         """
         coords = None
         states_left = state
+        
+        # Find x, y indices from state ID
+        found = False
+        target_y, target_x = 0, 0
+        
+        # Re-implemented loop to be cleaner and ensure we find the correct x,y
+        count = 0
         for y in range(len(self.state_grid)):
             for x in range(len(self.state_grid[0])):
-                states_left -= self.state_grid[y][x]
-                if states_left == 0:
-                    coords = y * self.delta_l + x * self.delta_w
-                    break
-            if coords is not None:
+                if self.state_grid[y][x]:
+                    if count == state:
+                        target_y, target_x = y, x
+                        found = True
+                        break
+                    count += 1
+            if found:
                 break
-        if center and coords is not None:
-            coords += 0.5 * (self.delta_l + self.delta_w) + self.cb
+                
+        if found:
+            # FIX 2: Add self.cb to the offset!
+            # Previous: coords = y * delta_l + x * delta_w (Result is vector from origin, not coordinate)
+            offset = target_y * self.delta_l + target_x * self.delta_w
+            coords = self.cb + offset
+
+            if center:
+                coords += 0.5 * (self.delta_l + self.delta_w)
+                
         return coords
 
     def calc_transition_prob(self, old_state, action, new_state):

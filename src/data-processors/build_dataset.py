@@ -4,19 +4,25 @@ Build labeled training dataset using existing MDP.py
 Creates pairs of (map_state, observation) with labels for CNN training
 """
 
+import sys
 import json
 import random
 from pathlib import Path
 from collections import defaultdict
+project_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(project_root))
 import numpy as np
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
-from MDP import MDP
-from cnn.image_data_processors.map import BBox, download_campus_map
+from src.mdp.MDP import MDP
+from src.cnn.image_data_processors.map import BBox, download_campus_map
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
-DATA_PATH = 'UPDATE THIS'
-OUT_PATH = 'UPDATE_THIS'
-MAP_CACHE_PATH = 'UPDATE_THIS'
+DATA_PATH = os.getenv("IMG_SRC")
+OUT_PATH = os.getenv("JSON_OUT") 
+MAP_CACHE_PATH = os.getenv("MAP_TILE_OUT")
 
 class DatasetBuilder:
     """Builds labeled training pairs for observation model CNN"""
@@ -540,7 +546,7 @@ def main():
     )
 
     # Maps API Key
-    api_key = "ENTER API KEY"
+    api_key = os.getenv("GOOGLE_CLOUD_STATIC_MAP_API")
 
     # Build dataset
     dataset_builder = DatasetBuilder(

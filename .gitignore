@@ -1,3 +1,11 @@
+# Dataset
+# Let's put all data in data/
+# /Street_View_Photos
+# /data
+# /test_scripts
+
+observation_model.pth
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -5,6 +13,11 @@ __pycache__/
 
 # C extensions
 *.so
+
+.env
+
+data/*
+!data/.gitkeep
 
 # Distribution / packaging
 .Python
