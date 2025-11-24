@@ -6,6 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+.env
+
+data/*
+!data/.gitkeep
+
 # Distribution / packaging
 .Python
 build/
