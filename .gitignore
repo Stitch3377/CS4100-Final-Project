@@ -17,7 +17,7 @@ __pycache__/
 .env
 
 data/*
-!data/.gitkeep
+!data/ppt/
 
 # Distribution / packaging
 .Python
