@@ -194,11 +194,17 @@ class DatasetBuilder:
                 try:
                     state_id = self.mdp.coord_to_state(coord)
 
+                    try:
+                        heading = float(meta_file.parent.name.split('_')[-1])
+                    except (ValueError, IndexError):
+                        heading = 0.0
+
                     state_images[state_id].append({
                         'image_path': str(image_file),
                         'metadata_path': str(meta_file),
                         'lat': float(lat),
                         'lon': float(lon),
+                        'heading': heading,
                         'coord': coord,
                         'pano_id': metadata.get('pano_id', ''),
                         'date': metadata.get('date', '')
@@ -265,6 +271,7 @@ class DatasetBuilder:
                     'map_center_lon': center_lon,
                     'observation_lat': img_data['lat'],
                     'observation_lon': img_data['lon'],
+                    'heading': img_data.get('heading', 0.0),
                     'pano_id': img_data.get('pano_id', ''),
                     'date': img_data.get('date', ''),
                     'label': 1,
@@ -348,6 +355,7 @@ class DatasetBuilder:
             obs_lon = pos_pair['observation_lon']
             pano_id = pos_pair['pano_id']
             date = pos_pair['date']
+            heading = pos_pair['heading']
 
             # Get neighboring states for hard negatives
             neighbors = self.get_neighboring_states(true_state_id, valid_states, radius=3)
@@ -378,6 +386,7 @@ class DatasetBuilder:
                     'map_center_lon': center_lon,
                     'observation_lat': obs_lat,
                     'observation_lon': obs_lon,
+                    'heading': heading,
                     'pano_id': pano_id,
                     'date': date,
                     'label': 0,
