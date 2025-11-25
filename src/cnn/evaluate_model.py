@@ -21,9 +21,9 @@ DEVICE = torch.device(
 )
 
 # Get paths (same as training)
-JSON_OUT_DIR = os.getenv("JSON_OUT", "data")
+JSON_OUT_DIR = os.getenv("METADATA_OUT")
 TEST_JSON = os.path.join(JSON_OUT_DIR, "test_pairs.json")
-CHECKPOINT_PATH = "observation_model.pth"
+CHECKPOINT_PATH = os.getenv("CNN_PTH_SRC")
 
 
 # --- 1. Dataset (same as training) ---

@@ -15,14 +15,14 @@ import numpy as np
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from src.mdp.MDP import MDP
-from src.cnn.image_data_processors.map import BBox, download_campus_map
+from map import BBox, download_campus_map
 import os
 from dotenv import load_dotenv
 load_dotenv()
 
-DATA_PATH = os.getenv("IMG_SRC")
-OUT_PATH = os.getenv("JSON_OUT") 
-MAP_CACHE_PATH = os.getenv("MAP_TILE_OUT")
+DATA_PATH = os.getenv("STREET_VIEW_IMG_SRC")
+OUT_PATH = os.getenv("METADATA_OUT") 
+MAP_CACHE_PATH = os.getenv("MAP_TILE_IMG_OUT")
 
 class DatasetBuilder:
     """Builds labeled training pairs for observation model CNN"""

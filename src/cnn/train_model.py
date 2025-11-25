@@ -20,7 +20,7 @@ IMAGE_SIZE = (256, 256)
 DEVICE = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
 
 # Get paths
-JSON_OUT_DIR = os.getenv("JSON_OUT", 'data')
+JSON_OUT_DIR = os.getenv("METADATA_OUT", 'data')
 TRAIN_JSON = os.path.join(JSON_OUT_DIR, 'train_pairs.json')
 TEST_JSON = os.path.join(JSON_OUT_DIR, 'test_pairs.json')
 
