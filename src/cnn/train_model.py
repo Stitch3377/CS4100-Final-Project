@@ -8,6 +8,7 @@ from torchvision import transforms
 from PIL import Image
 from dotenv import load_dotenv
 import numpy as np
+import matplotlib.pyplot as plt
 
 # --- Load Environment Variables ---
 load_dotenv() 
@@ -138,6 +139,7 @@ def train():
 
     for epoch in range(EPOCHS):
         model.train()
+        losses = []
         running_loss = 0.0
         
         # Track training accuracy to ensure it's actually learning
@@ -161,8 +163,11 @@ def train():
             train_total += labels.size(0)
 
         train_acc = 100 * train_correct / train_total
-        print(f"Epoch {epoch+1}/{EPOCHS} | Loss: {running_loss/len(train_loader):.4f} | Train Acc: {train_acc:.2f}%")
+        avg_loss = running_loss / len(train_loader)
+        losses.append(avg_loss)
+        print(f"Epoch {epoch+1}/{EPOCHS} | Loss: {avg_loss:.4f} | Train Acc: {train_acc:.2f}%")
         
+        plot_training_loss(losses)
         evaluate(model, test_loader)
 
     torch.save(model.state_dict(), 'observation_model.pth')
@@ -194,6 +199,18 @@ def evaluate(model, loader):
     print(f"   [TEST] Recall: {recall:.4f} | Precision: {precision:.4f} | F1: {f1:.4f}")
     print(f"   [TEST] TP={int(tp)} | TN={int(tn)} | FP={int(fp)} | FN={int(fn)}")
     print("-" * 50)
+
+def plot_training_loss(losses):
+    plt.figure(figsize=(10, 5))
+    plt.plot(range(1, len(losses) + 1), losses, marker='o', label='Training Loss', color='orange')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('CNN Training Loss Over Time')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f'training_loss_EP{EPOCHS}_BS{BATCH_SIZE}_LR{LEARNING_RATE}.png', dpi=150, bbox_inches='tight')
+    plt.close()
 
 if __name__ == "__main__":
     train()
