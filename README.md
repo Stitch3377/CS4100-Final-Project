@@ -40,3 +40,6 @@ Make sure `STREET_VIEW_IMG_SRC` is filled with street view photos before running
 `python src/cnn/evaluate_model.py`
 
 Make sure you download `observation_model.pth` from github release before running.
+
+#### Run tests
+`pytest`
