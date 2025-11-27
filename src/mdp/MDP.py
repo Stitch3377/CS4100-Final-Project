@@ -1,7 +1,7 @@
 import numpy as np
 
 ACTIONS = np.array([
-    [0,1],[1,0],[0,-1],[-1,0],#UP,DOWN,LEFT,RIGHT
+    [0,1],[1,0],[0,-1],[-1,0],#UP,LEFT,DOWN,RIGHT
     [-1,-1],[-1,1],[1,-1],[1,1],#Diagonals (DL, UL, DR, UR)
 ])
 
@@ -78,7 +78,7 @@ class MDP:
             try:
                 self.grid[y, x] = 1
             except IndexError:
-                print(f"out of bounds data: {coord}")
+                return self
             return self
 
         def create(self):
@@ -147,8 +147,13 @@ class MDP:
         
         pr_w = np.dot(c, norm_w)
         pr_l = np.dot(c, norm_l)
+
         x = int(pr_w)
         y = int(pr_l)
+
+        if self.state_grid[y][x] == 0:
+            return None
+
         return np.sum(self.state_grid[:y])+np.sum(self.state_grid[y][:x])
 
     def state_to_coord(self, state, center = True):

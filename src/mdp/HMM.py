@@ -66,3 +66,24 @@ class HMM:
         """
         denominator = np.sum(self.belief_state)
         return self.belief_state[0][state]/denominator
+
+    def belief_state_grid(self):
+        """
+        Returns the belief state grid of the HMM which is used for visualization purposes.
+
+        Returns
+        -------
+        np.ndarray
+            state grid which represents a map of northeastern. Instead all states are replaced with a float of how
+            likely they are the correct state.
+        """
+        index = 0
+        heat_map = np.zeros(self.MDP.state_grid.shape)
+        for y in range(len(self.MDP.state_grid)):
+            for x in range(len(self.MDP.state_grid[y])):
+                if self.MDP.state_grid[y][x] == 0:
+                    continue
+                heat_map[y][x] = self.belief_state[index]
+                index += 1
+        return heat_map
+
