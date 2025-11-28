@@ -25,16 +25,32 @@ api_key = os.getenv("GOOGLE_CLOUD_STATIC_MAP_API")
 
 
 cb = np.array([42.332417, -71.093694])#base coord
-cl = np.array([42.342028, -71.094639])#coord sharing edge with cb
-cw = np.array([42.333222, -71.083861])#coord sharing edge with cb
+cl = np.array([42.342028, -71.094639])#coord sharing edge with cb (defines length side)
+cw = np.array([42.333222, -71.083861])#coord sharing edge with cb (defines width side)
 
-sl = np.linalg.norm(cl-cb)
-sw = np.linalg.norm(cw-cb)
+sl = np.linalg.norm(cl-cb)#size of length
+sw = np.linalg.norm(cw-cb)#size of width
 
-l = cl - cb
-w = cw - cb
+length = cl - cb
+width = cw - cb
 
 def build_mdp(l_segments, w_segments):
+    """
+    Builds a mdp object using the photos designated by the env file.
+
+    Parameters
+    ----------
+    l_segments : integer
+                 amount of segments to break the length into
+    w_segments : integer
+                 amount of segments to break the width into
+
+    Returns
+    -------
+    MDP
+        built mdp with all states initialized
+
+    """
     mdp_builder = MDP.MDP_builder(cb, cl, cw, l_segments,  w_segments)
     for folder_name in tqdm(os.listdir(photos_dir)):
         folder_path = os.path.join(photos_dir, folder_name)
@@ -63,12 +79,37 @@ def build_mdp(l_segments, w_segments):
 
     return mdp_builder.create()
 
+#Modify this to change how the observations are accessed
 class CNN_wrapper:
+    """
+    Wraps the cnn_api into an object that can be used for the HMM class.
+    """
     def __init__(self, states):
+        """
+        Initializes the CNN_wrapper object.
+
+        Parameters
+        ----------
+        states : integer
+                 amount of states present in the MDP
+        """
         self.cnn_api = cnnAPI.StreetViewMatcher(model_path=model_dir, map_dir=map_dir)
         self.states = states
 
     def get_observations(self, photo):
+        """
+        Obtains all observation probabilities given a photo.
+
+        Parameters
+        ----------
+        photo : String
+                path to where the photo is located on the computer
+
+        Returns
+        -------
+        np.array
+            array of observation probabilities for each state sorted in order of the states.
+        """
         observations = np.zeros(self.states)
         for state in range(self.states):
             observations[state] = self.cnn_api.get_match_probability(photo, state)
@@ -76,6 +117,23 @@ class CNN_wrapper:
 
 
 def get_photo(latitude, longitude, heading):
+    """
+    Gets a photo at the desired latitude, longitude, and heading from street-view.
+
+    Parameters
+    ----------
+    latitude  : float
+                desired latitude for the photo
+    longitude : float
+                desired longitude for the photo
+    heading   : float
+                desired heading for the photo
+
+    Returns
+    -------
+    String
+        path to the photo object on the computer
+    """
     params = [{
         'size': '640x640',
         'location': str(latitude) + ',' + str(longitude),
@@ -90,6 +148,7 @@ def get_photo(latitude, longitude, heading):
     return path + "/gsv_0.jpg"
 
 #Controller for the demo
+#--------------------------------------------------------
 
 l_segments = 25
 w_segments = 25
@@ -99,28 +158,32 @@ lng = input("input starting longitude: ")
 
 current_coordinate = np.array([float(lat), float(lng)])
 
+#Creates the MDP, CNN, and HMM objects (as well as prep for plotting the first photo)
+
 mdp = build_mdp(l_segments, w_segments)
 cnn = CNN_wrapper(mdp.get_total_states())
 photo_path = get_photo(current_coordinate[0], current_coordinate[1], 360 * random())
 hmm = HMM.HMM(mdp, cnn, photo_path)
 photo = mpimg.imread(photo_path)
 
-delta_l = l/l_segments
-delta_w = w/w_segments
+delta_l = length / l_segments
+delta_w = width / w_segments
 
 user_input = None
 
-while user_input != "exit":
+#Controller loop
+while user_input != "quit":
     grid_coord = current_coordinate - cb
 
     norm_w = delta_w / np.dot(delta_w, delta_w)
     norm_l = delta_l / np.dot(delta_l, delta_l)
 
-    pr_w = np.dot(grid_coord, norm_w)
-    pr_l = np.dot(grid_coord, norm_l)
+    pr_w = np.dot(grid_coord, norm_w)#projection of coordinate along width side
+    pr_l = np.dot(grid_coord, norm_l)#projection of coordinate along length side
 
     print("current coordinate: ", current_coordinate)
 
+    #plots the current location/heatmap as well as the last observation
     fig, axs = plt.subplots(1, 2)
     axs[0].imshow(hmm.belief_state_grid(), cmap='gray')
     axs[0].plot(pr_w,pr_l, "rx", markersize=10)
@@ -129,18 +192,22 @@ while user_input != "exit":
 
     user_input = input("input action or quit: ")
 
+    #Checks if the input is valid or quit
     if user_input == "quit":
         break
     if not (str.isdigit(user_input) and 0 <= int(user_input) < len(mdpClass.ACTIONS)):
         print("Invalid input. Please try again.")
         continue
 
+    #processes the action (flips as actions are (x,y) while we want it to be (lat,lng))
     action = np.flip(mdpClass.ACTIONS[int(user_input)]) * np.array([sl/l_segments, sw/w_segments])#make sure order is correct
     new_coordinate = current_coordinate + action
     if mdp.coord_to_state(new_coordinate) is None:
         print("Action failed as next state does not exist. Please try again.")
         continue
     current_coordinate = new_coordinate
+
+    #updates the HMM and preps the next photo for plotting
     photo_path = get_photo(current_coordinate[0], current_coordinate[1], 360 * random())
     hmm.step(int(user_input), photo_path)
     photo = mpimg.imread(photo_path)
