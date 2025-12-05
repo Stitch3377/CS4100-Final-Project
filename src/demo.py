@@ -14,7 +14,7 @@ import matplotlib.image as mpimg
 
 from dotenv import load_dotenv
 
-import src.mdp.HMM as HMM
+import src.mdp.POMDP as POMDP
 
 load_dotenv()
 
@@ -163,7 +163,7 @@ current_coordinate = np.array([float(lat), float(lng)])
 mdp = build_mdp(l_segments, w_segments)
 cnn = CNN_wrapper(mdp.get_total_states())
 photo_path = get_photo(current_coordinate[0], current_coordinate[1], 360 * random())
-hmm = HMM.HMM(mdp, cnn, photo_path)
+hmm = POMDP.POMDP(mdp, cnn, photo_path)
 photo = mpimg.imread(photo_path)
 
 delta_l = length / l_segments
@@ -211,4 +211,3 @@ while user_input != "quit":
     photo_path = get_photo(current_coordinate[0], current_coordinate[1], 360 * random())
     hmm.step(int(user_input), photo_path)
     photo = mpimg.imread(photo_path)
-

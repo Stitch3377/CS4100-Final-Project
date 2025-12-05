@@ -1,7 +1,7 @@
 import numpy as np
 import src.mdp.MDP as MDP
 
-class HMM:
+class POMDP:
     """Class that represents a Hidden Markov Model specifically only its belief state."""
 
     def __init__(self, MDP, CNN, first_observation):

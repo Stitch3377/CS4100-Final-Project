@@ -7,7 +7,7 @@ import json
 
 import matplotlib.pyplot as plt
 from src.mdp.MDP import MDP
-import src.mdp.HMM as HMM
+import src.mdp.POMDP as HMM
 
 parent_dir = "C:/Users/arbla/PycharmProjects/Street-View-Downloader/photos"
 
@@ -61,7 +61,7 @@ cnn = dummy_cnn(mdp.get_total_states())
 plt.imshow(mdp.state_grid)
 plt.colorbar()
 plt.show()
-hmm = HMM.HMM(mdp, cnn, None)
+hmm = HMM.POMDP(mdp, cnn, None)
 action = None
 while action != "q":
     action = input()
