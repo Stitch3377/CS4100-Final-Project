@@ -1,0 +1,26 @@
+{
+  "total_pairs": 27610,
+  "positive_pairs": 2761,
+  "negative_pairs": 24849,
+  "hard_negatives": 11044,
+  "easy_negatives": 13805,
+  "actual_positive_ratio": 0.1,
+  "states_with_images": 458,
+  "total_states": 458,
+  "random_seed": 42,
+  "target_positive_ratio": 0.1,
+  "hard_negative_ratio": 0.5,
+  "map_zoom": 18,
+  "map_size": [
+    256,
+    256
+  ],
+  "states_with_map_tiles": 458,
+  "grid_shape": [
+    25,
+    25
+  ],
+  "train_samples": 20707,
+  "test_samples": 6903,
+  "test_size": 0.25
+}
