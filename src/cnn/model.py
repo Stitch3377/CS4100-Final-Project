@@ -69,7 +69,7 @@ class CrossViewProbabilityNet(nn.Module):
         # 3. Dropout (Regularization)
         map_vec = self.dropout(map_vec)
         street_vec = self.dropout(street_vec)
-        d
+        
         # 4. Project & Normalize
         map_emb = F.normalize(self.proj(map_vec), p=2, dim=1)
         street_emb = F.normalize(self.proj(street_vec), p=2, dim=1)

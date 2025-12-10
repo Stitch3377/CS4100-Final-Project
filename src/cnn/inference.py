@@ -127,7 +127,7 @@ class MatchPredictor:
 
 if __name__ == "__main__":
     # Example Usage
-    predictor = MatchPredictor(dist_threshold=0.9) # Adjust threshold based on eval.py results
+    predictor = MatchPredictor(dist_threshold=0.6) 
     
     # Replace with real paths from your data folder
     res = predictor.predict(

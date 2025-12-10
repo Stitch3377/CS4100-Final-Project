@@ -18,6 +18,8 @@ checkpoints/
 
 .env
 
+best_model.pth
+
 data/*
 !data/ppt/
 !data/json-out/dataset_metadata.json

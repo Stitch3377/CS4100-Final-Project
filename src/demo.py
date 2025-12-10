@@ -14,11 +14,7 @@ import matplotlib.image as mpimg
 
 from dotenv import load_dotenv
 
-<<<<<<< HEAD
 import src.mdp.POMDP as POMDP
-=======
-import mdp.HMM as HMM
->>>>>>> 0924a65 (images for presentation)
 
 load_dotenv()
 

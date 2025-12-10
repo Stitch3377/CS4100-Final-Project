@@ -5,146 +5,50 @@ from torchvision import transforms
 from PIL import Image
 from dotenv import load_dotenv
 
+from cnn.inference import MatchPredictor
+
 load_dotenv()
 
 CHECKPOINT_PATH = os.getenv("CNN_PTH_SRC")
 MAP_CACHE_PATH = os.getenv("MAP_TILE_IMG_OUT")
+# src/cnn/api.py
 
-# --- 1. Model Architecture (Must match training exactly) ---
-class ObservationProbabilityModel(nn.Module):
-    def __init__(self):
-        super(ObservationProbabilityModel, self).__init__()
-        
-        self.cnn = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.MaxPool2d(2), # 128x128
-            
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.MaxPool2d(2), # 64x64
-            
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.MaxPool2d(2), # 32x32
-            
-            nn.Flatten()
-        )
-        
-        self.flattened_size = 128 * 32 * 32
-        
-        self.classifier = nn.Sequential(
-            nn.Linear(self.flattened_size * 2, 512),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(512, 1)
-        )
-
-    def forward(self, map_img, street_img):
-        map_features = self.cnn(map_img)
-        street_features = self.cnn(street_img)
-        combined = torch.cat((map_features, street_features), dim=1)
-        logits = self.classifier(combined)
-        return logits.squeeze()
-
-# --- 2. The API Class ---
 class StreetViewMatcher:
     def __init__(self, model_path=None, map_dir=None, device=None):
         """
         Initializes the model once to avoid reloading overhead.
-        
-        Args:
-            model_path (str): Path to the .pth checkpoint file.
-            map_dir (str): Directory where map tiles are stored (e.g., 'data/maps').
-            device (str): 'cuda', 'mps', or 'cpu'. Auto-detected if None.
         """
-    
-        
-        # specific defaults if arguments not provided
-        self.model_path = model_path 
         self.map_dir = map_dir 
         
-        # Device configuration
-        if device:
-            self.device = torch.device(device)
-        else:
-            self.device = torch.device(
-                "mps" if torch.backends.mps.is_available() 
-                else "cuda" if torch.cuda.is_available() 
-                else "cpu"
-            )
-            
-        print(f"Initializing Matcher on {self.device}...")
-        
-        # Load Model
-        self.model = ObservationProbabilityModel().to(self.device)
-        try:
-            state_dict = torch.load(self.model_path, map_location=self.device)
-            self.model.load_state_dict(state_dict)
-            self.model.eval() # CRITICAL: Set to eval mode for inference
-            print(f"Model loaded successfully from {self.model_path}")
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Model weights not found at {self.model_path}")
-
-        # Define Transforms (Must match training)
-        self.transform = transforms.Compose([
-            transforms.Resize((256, 256)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406], 
-                std=[0.229, 0.224, 0.225]
-            )
-        ])
-
+        # --- FIX 1: Initialize the Predictor ONCE here ---
+        # We load the heavy model into memory one time when the app starts.
+        print("Initializing StreetViewMatcher and loading model...")
+        self.predictor = MatchPredictor(
+            model_path=model_path, 
+            dist_threshold=0.6
+        )
+    
     def get_match_probability(self, street_view_input, map_tile_index):
         """
         API Function to calculate match probability.
-
-        Args:
-            street_view_input (str or PIL.Image): Path to street view image OR PIL Image object.
-            map_tile_index (int or str): The index/ID of the map tile (e.g., 226 for 'state_226.png').
-
-        Returns:
-            float: Probability (0.0 to 1.0) that the street view belongs to the map tile.
         """
-        
-        # 1. Load Map Image
-        # Assumes naming convention: state_{index}.png
         map_filename = f"state_{map_tile_index}.png"
         map_path = os.path.join(self.map_dir, map_filename)
+
+        # --- FIX 2: Use the pre-loaded self.predictor ---
+        # Do NOT do: predictor = MatchPredictor(...) here.
         
-        try:
-            map_img = Image.open(map_path).convert("RGB")
-        except FileNotFoundError:
-            print(f"Error: Map tile {map_path} not found.")
-            return 0.0
+        res = self.predictor.predict(
+            map_path=map_path, 
+            street_path=street_view_input,
+            heading=0.0
+        )
 
-        # 2. Load Street View Image
-        if isinstance(street_view_input, str):
-            try:
-                street_img = Image.open(street_view_input).convert("RGB")
-            except FileNotFoundError:
-                print(f"Error: Street view file {street_view_input} not found.")
-                return 0.0
-        elif isinstance(street_view_input, Image.Image):
-            street_img = street_view_input.convert("RGB")
-        else:
-            raise ValueError("street_view_input must be a file path string or PIL Image")
+        # Keep your previous fix for the float return type
+        if isinstance(res, dict):
+            return res['match_probability'] # Or 'score', check your keys
 
-        # 3. Preprocess
-        # Add batch dimension (unsqueeze) because model expects [B, C, H, W]
-        map_tensor = self.transform(map_img).unsqueeze(0).to(self.device)
-        street_tensor = self.transform(street_img).unsqueeze(0).to(self.device)
-
-        # 4. Inference
-        with torch.no_grad():
-            logits = self.model(map_tensor, street_tensor)
-            probability = torch.sigmoid(logits).item()
-
-        return probability
+        return res
 
 # --- Usage Example ---
 if __name__ == "__main__":
