@@ -6,15 +6,19 @@ import os
 import json
 
 import matplotlib.pyplot as plt
-from src.mdp.MDP import MDP
-import src.mdp.MDP as mdpClass
-import src.cnn.api as cnnAPI
+from mdp.MDP import MDP
+import mdp.MDP as mdpClass
+import cnn.api as cnnAPI
 import google_streetview.api
 import matplotlib.image as mpimg
 
 from dotenv import load_dotenv
 
+<<<<<<< HEAD
 import src.mdp.POMDP as POMDP
+=======
+import mdp.HMM as HMM
+>>>>>>> 0924a65 (images for presentation)
 
 load_dotenv()
 

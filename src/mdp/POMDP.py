@@ -1,5 +1,5 @@
 import numpy as np
-import src.mdp.MDP as MDP
+import mdp.MDP as MDP
 
 class POMDP:
     """Class that represents a Hidden Markov Model specifically only its belief state."""
